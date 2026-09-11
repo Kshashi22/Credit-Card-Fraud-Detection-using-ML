@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Credit Card Fraud Detection</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #ffffff;
+    --accent: #4f46e5;
+    --danger: #dc2626;
+    --success: #16a34a;
+    --muted: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 480px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+  }
+  h1 {
+    font-size: 22px;
+    margin: 0 0 4px 0;
+    color: #111827;
+  }
+  p.subtitle {
+    color: var(--muted);
+    margin: 0 0 24px 0;
+    font-size: 14px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 6px;
+    margin-top: 16px;
+  }
+  input[type="number"], select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+  .toggles {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  button {
+    margin-top: 24px;
+    width: 100%;
+    padding: 12px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  #result {
+    margin-top: 20px;
+    padding: 16px;
+    border-radius: 10px;
+    display: none;
+    font-size: 14px;
+  }
+  #result.fraud { background: #fef2f2; border: 1px solid #fecaca; color: var(--danger); }
+  #result.safe { background: #f0fdf4; border: 1px solid #bbf7d0; color: var(--success); }
+  #result.error { background: #fef2f2; border: 1px solid #fecaca; color: var(--danger); }
+  #result strong { display: block; font-size: 16px; margin-bottom: 4px; }
+  footer {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Credit Card Fraud Detection</h1>
+    <p class="subtitle">Enter transaction details to check the likelihood of fraud.</p>
+
+    <label for="distance_from_home">Distance from Home (miles)</label>
+    <input type="number" id="distance_from_home" value="10" step="0.1" min="0" />
+
+    <label for="distance_from_last_transaction">Distance from Last Transaction (miles)</label>
+    <input type="number" id="distance_from_last_transaction" value="5" step="0.1" min="0" />
+
+    <label for="ratio_to_median_purchase_price">Ratio to Median Purchase Price</label>
+    <input type="number" id="ratio_to_median_purchase_price" value="1" step="0.1" min="0" />
+
+    <div class="toggles">
+      <div>
+        <label for="repeat_retailer">Repeat Retailer?</label>
+        <select id="repeat_retailer"><option value="1">Yes</option><option value="0">No</option></select>
+      </div>
+      <div>
+        <label for="used_chip">Chip Used?</label>
+        <select id="used_chip"><option value="1">Yes</option><option value="0">No</option></select>
+      </div>
+      <div>
+        <label for="used_pin_number">PIN Used?</label>
+        <select id="used_pin_number"><option value="0">No</option><option value="1">Yes</option></select>
+      </div>
+      <div>
+        <label for="online_order">Online Order?</label>
+        <select id="online_order"><option value="1">Yes</option><option value="0">No</option></select>
+      </div>
+    </div>
+
+    <button id="predictBtn">Predict Fraud</button>
+
+    <div id="result"></div>
+
+    <footer>Random Forest model &middot; deployed on Vercel</footer>
+  </div>
+
+<script>
+const btn = document.getElementById('predictBtn');
+const resultBox = document.getElementById('result');
+
+btn.addEventListener('click', async () => {
+  btn.disabled = true;
+  btn.textContent = 'Predicting...';
+  resultBox.style.display = 'none';
+
+  const payload = {
+    distance_from_home: parseFloat(document.getElementById('distance_from_home').value),
+    distance_from_last_transaction: parseFloat(document.getElementById('distance_from_last_transaction').value),
+    ratio_to_median_purchase_price: parseFloat(document.getElementById('ratio_to_median_purchase_price').value),
+    repeat_retailer: document.getElementById('repeat_retailer').value === '1',
+    used_chip: document.getElementById('used_chip').value === '1',
+    used_pin_number: document.getElementById('used_pin_number').value === '1',
+    online_order: document.getElementById('online_order').value === '1',
+  };
+
+  try {
+    const res = await fetch('/api/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.error || 'Prediction failed');
+
+    resultBox.className = data.fraud ? 'fraud' : 'safe';
+    resultBox.style.display = 'block';
+    resultBox.innerHTML = data.fraud
+      ? `<strong>🚨 Likely Fraudulent</strong>Confidence: ${(data.confidence * 100).toFixed(2)}%`
+      : `<strong>✅ Not Fraudulent</strong>Confidence: ${(data.confidence * 100).toFixed(2)}%`;
+  } catch (err) {
+    resultBox.className = 'error';
+    resultBox.style.display = 'block';
+    resultBox.innerHTML = `<strong>Error</strong>${err.message}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Predict Fraud';
+  }
+});
+</script>
+</body>
+</html>
